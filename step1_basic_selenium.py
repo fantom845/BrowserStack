@@ -74,14 +74,8 @@ def navigate_to_elpais(driver):
             # Detect language
             detection = translator.detect(sample_text)
             detected_lang = detection.lang
-            confidence = detection.confidence
             
             print(f"Detected language: {detected_lang}")
-            
-            if confidence is not None:
-                print(f"Confidence: {confidence:.2f}")
-            else:
-                print("Confidence: Not available")
             
             if detected_lang == 'es':
                 print("✓ Website is confirmed to be in Spanish")
