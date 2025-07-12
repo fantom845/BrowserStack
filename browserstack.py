@@ -13,7 +13,6 @@ def setup_driver():
     print("Setting up Chrome WebDriver...")
     
     chrome_options = Options()
-    chrome_options.add_argument("--lang=es")
     driver = webdriver.Chrome(options=chrome_options)
     
     driver.maximize_window()
@@ -90,6 +89,58 @@ def navigate_to_elpais(driver):
         print("⚠ Continuing without language verification")
 
 
+        
+
+def navigate_to_opinion_section(driver):
+
+    print("Navigating to Opinion section...")
+
+    # Navigate directly to the Opinion section
+    #driver.get("https://elpais.com/opinion")
+    
+    try:
+        opinion_link = driver.find_element(By.LINK_TEXT, "Opinión")
+        opinion_link.click()
+    except Exception as e:
+        print(f"Failed to navigate to Opinion section: {e}")
+        return
+    
+    time.sleep(3)
+
+
+    time.sleep(3)
+
+    print(f"Opinion section title: {driver.title}")
+    print("✓ Successfully navigated to Opinion section")
+
+    
+def explore_page_structure(driver):
+    """
+    Explore the page structure to understand how articles are organized.
+    """
+    print("\n--- Exploring Page Structure ---")
+    
+    article_links = driver.find_elements(By.TAG_NAME, "article")
+    print(f"Found {len(article_links)} <article> elements")
+    
+    all_links = driver.find_elements(By.TAG_NAME, "a")
+    print(f"Found {len(all_links)} total links on the page")
+    
+    h2_elements = driver.find_elements(By.TAG_NAME, "h2")
+    h3_elements = driver.find_elements(By.TAG_NAME, "h3")
+    
+    print(f"Found {len(h2_elements)} <h2> elements (likely article titles)")
+    print(f"Found {len(h3_elements)} <h3> elements (possibly article titles)")
+    
+    print("\n--- Article Titles ---")
+    for i, h2 in enumerate(h2_elements[:5]):
+        try:
+            title_text = h2.text.strip()
+            if title_text:
+                print(f"{i+1}. {title_text}")
+        except Exception as e:
+            print(f"{i+1}. [Could not extract text: {e}]")
+
 
 def main():
     driver = None
@@ -100,6 +151,15 @@ def main():
         navigate_to_elpais(driver)
         
         print("Step 1 completed successfully!")
+
+        navigate_to_opinion_section(driver)
+        explore_page_structure(driver)
+        
+
+        print("Step 2 completed successfully!")
+
+        time.sleep(10)  # Keep browser open for 10 seconds to see results
+        print("Keeping browser open for 10 seconds...")
         
     except Exception as e:
         print(f"Error occurred: {e}")
