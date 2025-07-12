@@ -120,96 +120,60 @@ def get_article_content(driver, article_url):
     """
     Navigate to individual article page and extract full content.
     """
-    try:
+    try: 
         driver.get(article_url)
         time.sleep(3)
-        
-        # Check for paywall
-        has_paywall = False
-        try:
-            driver.find_element(By.CSS_SELECTOR, "div.a_b_wall._dn")
-            has_paywall = True
-        except:
-            has_paywall = False
-        
-        # Extract preview text (subtitle)
-        preview_text = ""
-        try:
-            preview_element = driver.find_element(By.CSS_SELECTOR, "h2.a_st")
-            preview_text = preview_element.text.strip()
-        except:
-            preview_text = "No preview text found"
-        
-        # Extract content paragraphs
-        content_paragraphs = []
-        try:
-            p_elements = driver.find_elements(By.CSS_SELECTOR, "p[class='']")
-            for p in p_elements:
-                text = p.text.strip()
-                if text:
-                    content_paragraphs.append(text)
-        except:
-            content_paragraphs = []
-        
-        return {
-            "preview_text": preview_text,
-            "content_paragraphs": content_paragraphs,
-            "has_paywall": has_paywall,
-            "full_content": " ".join(content_paragraphs)
-        }
-        
+
+        # Extract article content
+        content_element = driver.find_element(By.CSS_SELECTOR, "h2")
+        content = content_element.text.strip()
+
+        if not content:
+            print("⚠ Warning: No content found in article")
+            return "No content found"
+
+        driver.get("https://elpais.com/opinion/")
+        time.sleep(3)
+        return content
     except Exception as e:
-        return {
-            "preview_text": f"Error: {e}",
-            "content_paragraphs": [],
-            "has_paywall": False,
-            "full_content": ""
-        }
-    
+        print(f"Error extracting content from {article_url}: {e}")
 
 def get_top_5_articles(driver) -> list:
     driver.get("https://elpais.com/opinion/")
     articles = driver.find_elements(By.TAG_NAME, "article")[:5]
     titles = []
-
-    for article in articles:
-        try:
-            title = article.find_element(By.CSS_SELECTOR, "h2, h3").text
-            titles.append(title)
-        except:
-            titles.append("Title not found")
+    article_urls = []
 
     article_data_list = []
 
-    for i, article in enumerate(articles, 1):
+    for article in articles:
         try:
             title_element = article.find_element(By.CSS_SELECTOR, "h2 a")
             title = title_element.text
+            titles.append(title)
         except:
             title = "Title not found"
 
         try:
             link_element = article.find_element(By.CSS_SELECTOR, "h2 a")
             article_url = link_element.get_attribute("href")
+            article_urls.append(article_url)
         except:
             article_url = "URL not found"
 
-        preview = None
-
-        try:
-            preview_element = article.find_element(By.CSS_SELECTOR, "p")
-            preview = preview_element.text.strip()
-        except:
-            preview = "No preview available"
-
+    for i, (title, article_url) in enumerate(zip(titles, article_urls), start=1):
+        print(f"{i}. {title} - {article_url}")
+        content = get_article_content(driver, article_url)
         article_data = {
             "position": i,
             "title": title,
             "url": article_url,
-            "preview": preview,
+            "content": content[:500]  # Limit to first 500 characters for preview
         }
         article_data_list.append(article_data)
-        titles.append(title)
+        
+    
+
 
     return article_data_list
 
@@ -225,8 +189,6 @@ def main():
 
         print("Step 1 completed successfully!")
 
-        navigate_to_opinion_section(driver)
-
         articles = get_top_5_articles(driver)
         # print in tabular format
         print("\n--- Top 5 Articles in Opinion Section ---")
@@ -235,7 +197,7 @@ def main():
         print("\nArticle data:")
         for article in articles:
             print(f"{article['position']}. {article['title']} - {article['url']}")
-            print(f"  Preview: {article['preview']}")
+            print(f"   Content Preview: {article['content'][:100]}...")
 
         print("Step 2 completed successfully!")
 
