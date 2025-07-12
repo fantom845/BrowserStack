@@ -130,45 +130,103 @@ def get_article_content(driver):
         except:
             print("📖 Non-paywalled article")
 
-        # Multiple content selectors in order of preference
-        content_selectors = [
-            "div.a_c p",  # Article content paragraphs
-            "[data-dtm-region='articulo_cuerpo'] p",  # Data attribute selector
-            
-            # Gallery content
-            "#main-content > div.a_c.clearfix > p",
-            "#gallery-slider + div p",
-            
-            "article p",
-            ".articulo-contenido p",
-            "h2",
-        ]
+        collected_content = []
         
-        # If paywalled, target the second a_b_wall div that contains paragraphs
         if is_paywalled:
-            paywall_selectors = [
-                "div.a_b_wall._dn p",  # All paywall content as fallback
-            ]
-            content_selectors = paywall_selectors + content_selectors
-        
-        for selector in content_selectors:
+            # Step 1: Get teaser content (visible content)
+            teaser_content = []
             try:
-                elements = driver.find_elements(By.CSS_SELECTOR, selector)
-                if elements:
-                    content = " ".join([elem.text.strip() for elem in elements[:3]])  # First 3 paragraphs
-                    if content and len(content) > 50:  # Ensure meaningful content
-                        return content
+                teaser_elements = driver.find_elements(By.CSS_SELECTOR, "div.a_c p")
+                for elem in teaser_elements:
+                    text = elem.text.strip()
+                    if text and len(text) > 20:
+                        teaser_content.append(text)
+                print(f"📖 Found {len(teaser_content)} teaser paragraphs")
             except:
-                continue
-
+                pass
+            
+            # Step 2: Try to make paywall content visible using JavaScript
+            try:
+                driver.execute_script("""
+                    // Remove display: none from paywall content
+                    var hiddenElements = document.querySelectorAll('.a_b_wall._dn, ._dn');
+                    hiddenElements.forEach(function(element) {
+                        element.style.display = 'block';
+                        element.style.visibility = 'visible';
+                        element.classList.remove('_dn');
+                    });
+                """)
+                time.sleep(1)  # Wait for content to become visible
+                print("💡 Attempted to make paywall content visible")
+            except Exception as e:
+                print(f"Could not execute script: {e}")
+            
+            # Step 3: Extract paywall content (now hopefully visible)
+            paywall_content = []
+            paywall_selectors = [
+                "div.a_b_wall p",                                              # Paywall content (now visible)
+                "#main-content > div.a_c.clearfix > div:nth-child(5) p",      # Your specific selector
+                "div.a_b_wall._dn p",                                          # Hidden paywall content
+                ".a_b_wall p",                                                 # Any paywall content
+            ]
+            
+            for selector in paywall_selectors:
+                try:
+                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    if elements:
+                        new_content = []
+                        for elem in elements:
+                            text = elem.text.strip()
+                            # Only add if not already in teaser and meaningful length
+                            if text and len(text) > 20 and text not in " ".join(teaser_content):
+                                new_content.append(text)
+                        
+                        if new_content:
+                            paywall_content.extend(new_content)
+                            print(f"🔒 Found {len(new_content)} paywall paragraphs with selector: {selector}")
+                            break  # Stop at first successful paywall extraction
+                except:
+                    continue
+            
+            # Step 4: Combine teaser + paywall content
+            all_content = teaser_content + paywall_content
+            if all_content:
+                final_content = " ".join(all_content)
+                print(f"🔒 Combined article: {len(teaser_content)} teaser + {len(paywall_content)} paywall = {len(all_content)} total paragraphs, {len(final_content)} characters")
+                return final_content
+        
+        else:
+            # For non-paywalled articles: use original logic
+            content_selectors = [
+                "div.a_c p",
+                "[data-dtm-region='articulo_cuerpo'] p",
+                "#main-content > div.a_c.clearfix > p",
+                "article p",
+                ".articulo-contenido p",
+                "h2",  # Fallback
+            ]
+            
+            for selector in content_selectors:
+                try:
+                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    if elements:
+                        content = " ".join([elem.text.strip() for elem in elements[:5]])  # First 5 paragraphs
+                        if content and len(content) > 200:
+                            print(f"Found {len(elements)} paragraphs with selector: {selector}")
+                            print(f"Total content length: {len(content)} characters")
+                            return content
+                except:
+                    continue
+        
         print("⚠ Warning: No content found in article")
         return "No content found"
+        
     except Exception as e:
         print(f"Error extracting content from {driver.current_url}: {e}")
         return "No content found"
+    
 
 def get_top_5_articles(driver) -> list:
-    driver.get("https://elpais.com/opinion/")
     articles = driver.find_elements(By.TAG_NAME, "article")[:5]
     titles = []
     article_urls = []
@@ -219,6 +277,7 @@ def main():
 
         print("Step 1 completed successfully!")
 
+        navigate_to_opinion_section(driver)
         articles = get_top_5_articles(driver)
         # print in tabular format
         print("\n--- Top 5 Articles in Opinion Section ---")
