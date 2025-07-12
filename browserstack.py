@@ -124,19 +124,38 @@ def get_article_content(driver, article_url):
         driver.get(article_url)
         time.sleep(3)
 
-        # Extract article content
-        content_element = driver.find_element(By.CSS_SELECTOR, "h2")
-        content = content_element.text.strip()
+        # Multiple content selectors in order of preference
+        content_selectors = [
+            "div.a_c p",  # Article content paragraphs
+            "[data-dtm-region='articulo_cuerpo'] p",  # Data attribute selector
+            
+            # Gallery content
+            "#main-content > div.a_c.clearfix > p",
+            "#gallery-slider + div p",
+            
+            "article p",
+            ".articulo-contenido p",
+            "h2",
+        ]
+        
+        for selector in content_selectors:
+            try:
+                elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                if elements:
+                    content = " ".join([elem.text.strip() for elem in elements[:3]])  # First 3 paragraphs
+                    driver.get("https://elpais.com/opinion/")
+                    time.sleep(3)
+                    return content
+            except:
+                continue
 
-        if not content:
-            print("⚠ Warning: No content found in article")
-            return "No content found"
-
+        print("⚠ Warning: No content found in article")
         driver.get("https://elpais.com/opinion/")
         time.sleep(3)
-        return content
+        return "No content found"
     except Exception as e:
         print(f"Error extracting content from {article_url}: {e}")
+        return "No content found"
 
 def get_top_5_articles(driver) -> list:
     driver.get("https://elpais.com/opinion/")
@@ -168,7 +187,7 @@ def get_top_5_articles(driver) -> list:
             "position": i,
             "title": title,
             "url": article_url,
-            "content": content[:500]  # Limit to first 500 characters for preview
+            "content": content
         }
         article_data_list.append(article_data)
         
@@ -197,7 +216,7 @@ def main():
         print("\nArticle data:")
         for article in articles:
             print(f"{article['position']}. {article['title']} - {article['url']}")
-            print(f"   Content Preview: {article['content'][:100]}...")
+            print(f"   Content Preview: {article['content']}\n")
 
         print("Step 2 completed successfully!")
 
