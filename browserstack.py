@@ -116,13 +116,19 @@ def navigate_to_opinion_section(driver) -> None:
     print("✓ Successfully navigated to Opinion section")
 
 
-def get_article_content(driver, article_url):
+def get_article_content(driver):
     """
     Navigate to individual article page and extract full content.
     """
     try: 
-        driver.get(article_url)
-        time.sleep(3)
+        # Check if article is paywalled
+        is_paywalled = False
+        try:
+            paywall_element = driver.find_element(By.CSS_SELECTOR, "#ctn_freemium_article")
+            is_paywalled = True
+            print("🔒 Detected paywalled article")
+        except:
+            print("📖 Non-paywalled article")
 
         # Multiple content selectors in order of preference
         content_selectors = [
@@ -138,23 +144,27 @@ def get_article_content(driver, article_url):
             "h2",
         ]
         
+        # If paywalled, target the second a_b_wall div that contains paragraphs
+        if is_paywalled:
+            paywall_selectors = [
+                "div.a_b_wall._dn p",  # All paywall content as fallback
+            ]
+            content_selectors = paywall_selectors + content_selectors
+        
         for selector in content_selectors:
             try:
                 elements = driver.find_elements(By.CSS_SELECTOR, selector)
                 if elements:
                     content = " ".join([elem.text.strip() for elem in elements[:3]])  # First 3 paragraphs
-                    driver.get("https://elpais.com/opinion/")
-                    time.sleep(3)
-                    return content
+                    if content and len(content) > 50:  # Ensure meaningful content
+                        return content
             except:
                 continue
 
         print("⚠ Warning: No content found in article")
-        driver.get("https://elpais.com/opinion/")
-        time.sleep(3)
         return "No content found"
     except Exception as e:
-        print(f"Error extracting content from {article_url}: {e}")
+        print(f"Error extracting content from {driver.current_url}: {e}")
         return "No content found"
 
 def get_top_5_articles(driver) -> list:
@@ -182,7 +192,9 @@ def get_top_5_articles(driver) -> list:
 
     for i, (title, article_url) in enumerate(zip(titles, article_urls), start=1):
         print(f"{i}. {title} - {article_url}")
-        content = get_article_content(driver, article_url)
+        driver.get(article_url)
+        time.sleep(3)
+        content = get_article_content(driver)
         article_data = {
             "position": i,
             "title": title,
@@ -195,7 +207,6 @@ def get_top_5_articles(driver) -> list:
 
 
     return article_data_list
-
 
 
 def main():
