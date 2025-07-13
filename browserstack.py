@@ -328,6 +328,41 @@ def save_cover_image(driver, article_title):
     print("⚠ No cover image found")
     return None
 
+def translate_text(text, target_lang="en"):
+    import requests
+
+    url = "https://rapid-translate-multi-traduction.p.rapidapi.com/t"
+    if not os.getenv("RAPIDAPI_KEY"):
+        print("Error: RAPIDAPI_KEY environment variable is not set.")
+        return text
+
+    headers = {
+        "Content-Type": "application/json",
+        "x-rapidapi-host": "rapid-translate-multi-traduction.p.rapidapi.com",
+        "x-rapidapi-key": os.getenv("RAPIDAPI_KEY"),
+    }
+    payload = {
+        "from": "es",
+        "to": target_lang,
+        "q": text,
+    }
+    response = requests.post(url, headers=headers, json=payload)
+    if response.status_code == 200:
+        try:
+            result = response.json()
+            # API returns a simple list: ["translated text"]
+            if isinstance(result, list) and len(result) > 0:
+                return result[0]
+            else:
+                print(f"Unexpected response format: {result}")
+                return text
+        except Exception as e:
+            print(f"Error parsing translation response: {e}")
+            return text
+    else:
+        print(f"Translation failed: {response.status_code}")
+        return text
+
 
 def get_top_5_articles(driver) -> list:
     articles = driver.find_elements(By.TAG_NAME, "article")[:5]
@@ -357,12 +392,13 @@ def get_top_5_articles(driver) -> list:
         time.sleep(3)
         content = get_article_content(driver)
 
-        # Download cover image
         image_path = save_cover_image(driver, title)
 
+        translated_title = translate_text(title)
         article_data = {
             "position": i,
             "title": title,
+            "translated_title": translated_title,
             "url": article_url,
             "content": content,
             "cover_image_path": image_path,
@@ -370,6 +406,20 @@ def get_top_5_articles(driver) -> list:
         article_data_list.append(article_data)
 
     return article_data_list
+
+def print_articles(articles):
+    print(f"Found top {len(articles)} articles in the Opinion section")
+    print("Displaying article titles, URLs, and previews:")
+    print("\nArticle data:")
+    for article in articles:
+        print(f"{article['position']}. {article['title']} - {article['url']}")
+        print(f"   Content Preview: {article['content']}\n")
+
+def print_translated_titles(articles):
+    print("\nTranslated Titles:")
+    for article in articles:
+        print(f"{article['position']}. {article['translated_title']}")
+
 
 
 def main():
@@ -383,20 +433,21 @@ def main():
         print("Step 1 completed successfully!")
 
         navigate_to_opinion_section(driver)
-        articles = get_top_5_articles(driver)
-        # print in tabular format
-        print("\n--- Top 5 Articles in Opinion Section ---")
-        print(f"Found {len(articles)} articles in the Opinion section")
-        print("Displaying article titles, URLs, and previews:")
-        print("\nArticle data:")
-        for article in articles:
-            print(f"{article['position']}. {article['title']} - {article['url']}")
-            print(f"   Content Preview: {article['content']}\n")
 
+        articles = get_top_5_articles(driver)
+        
+        if not articles:
+            print("No articles found in the Opinion section.")
+            return
+        
+        print_articles(articles)
+
+        print_translated_titles(articles)
+        
         print("Step 2 completed successfully!")
 
         print("Keeping browser open for 10 seconds...")
-        time.sleep(10)  # Keep browser open for 10 seconds to see results
+        time.sleep(10)
 
     except Exception as e:
         print(f"Error occurred: {e}")
