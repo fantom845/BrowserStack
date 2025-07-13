@@ -420,6 +420,31 @@ def print_translated_titles(articles):
     for article in articles:
         print(f"{article['position']}. {article['translated_title']}")
 
+def analyze_repeated_words(articles):
+    """
+    Analyze translated headers for words repeated more than twice.
+    """
+    all_words = []
+    for article in articles:
+        # Convert to lowercase and split into words
+        words = article['translated_title'].lower().split()
+        clean_words = [word.strip('.,!?;:"()[]{}') for word in words]
+        all_words.extend(clean_words)
+    
+    word_count = {}
+    for word in all_words:
+        if word:
+            word_count[word] = word_count.get(word, 0) + 1
+            
+    repeated_words = {word: count for word, count in word_count.items() if count > 2}
+    
+    print(f"\nRepeated Words (appearing more than twice):")
+    if repeated_words:
+        for word, count in sorted(repeated_words.items()):
+            print(f"'{word}': {count} occurrences")
+    else:
+        print("No words appear more than twice across all translated headers.")
+
 
 
 def main():
@@ -443,6 +468,8 @@ def main():
         print_articles(articles)
 
         print_translated_titles(articles)
+        
+        analyze_repeated_words(articles)
         
         print("Step 2 completed successfully!")
 
