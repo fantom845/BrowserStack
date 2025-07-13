@@ -19,6 +19,10 @@ python3 browserstack.py
 - Translation via Rapid Translate Multi Traduction API
 - Word analysis of translated headers
 
+## Demo
+
+[Link to demo](https://drive.google.com/file/d/1o3MXcCAHdss25hl5GbA-kbCPdK4WGoBS/view?usp=sharing)
+
 ## Output
 ```zsh
 python3 browserstack.py
