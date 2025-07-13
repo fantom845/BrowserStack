@@ -2,6 +2,9 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 import time
+import requests
+import os
+import re
 
 
 def setup_driver():
@@ -107,7 +110,6 @@ def navigate_to_opinion_section(driver) -> None:
 
     time.sleep(3)
 
-    # Verify we are on the Opinion section
     if "opinion" not in driver.current_url:
         print("Failed to navigate to Opinion section")
         return
@@ -120,18 +122,18 @@ def get_article_content(driver):
     """
     Navigate to individual article page and extract full content.
     """
-    try: 
+    try:
         # Check if article is paywalled
         is_paywalled = False
         try:
-            paywall_element = driver.find_element(By.CSS_SELECTOR, "#ctn_freemium_article")
+            driver.find_element(By.CSS_SELECTOR, "#ctn_freemium_article")
             is_paywalled = True
             print("🔒 Detected paywalled article")
         except:
             print("📖 Non-paywalled article")
 
         collected_content = []
-        
+
         if is_paywalled:
             # Step 1: Get teaser content (visible content)
             teaser_content = []
@@ -144,10 +146,11 @@ def get_article_content(driver):
                 print(f"📖 Found {len(teaser_content)} teaser paragraphs")
             except:
                 pass
-            
+
             # Step 2: Try to make paywall content visible using JavaScript
             try:
-                driver.execute_script("""
+                driver.execute_script(
+                    """
                     // Remove display: none from paywall content
                     var hiddenElements = document.querySelectorAll('.a_b_wall._dn, ._dn');
                     hiddenElements.forEach(function(element) {
@@ -155,21 +158,22 @@ def get_article_content(driver):
                         element.style.visibility = 'visible';
                         element.classList.remove('_dn');
                     });
-                """)
-                time.sleep(1)  # Wait for content to become visible
+                """
+                )
+                time.sleep(1)
                 print("💡 Attempted to make paywall content visible")
             except Exception as e:
                 print(f"Could not execute script: {e}")
-            
+
             # Step 3: Extract paywall content (now hopefully visible)
             paywall_content = []
             paywall_selectors = [
-                "div.a_b_wall p",                                              # Paywall content (now visible)
-                "#main-content > div.a_c.clearfix > div:nth-child(5) p",      # Your specific selector
-                "div.a_b_wall._dn p",                                          # Hidden paywall content
-                ".a_b_wall p",                                                 # Any paywall content
+                "div.a_b_wall p",
+                "#main-content > div.a_c.clearfix > div:nth-child(5) p",
+                "div.a_b_wall._dn p",
+                ".a_b_wall p",
             ]
-            
+
             for selector in paywall_selectors:
                 try:
                     elements = driver.find_elements(By.CSS_SELECTOR, selector)
@@ -178,23 +182,31 @@ def get_article_content(driver):
                         for elem in elements:
                             text = elem.text.strip()
                             # Only add if not already in teaser and meaningful length
-                            if text and len(text) > 20 and text not in " ".join(teaser_content):
+                            if (
+                                text
+                                and len(text) > 20
+                                and text not in " ".join(teaser_content)
+                            ):
                                 new_content.append(text)
-                        
+
                         if new_content:
                             paywall_content.extend(new_content)
-                            print(f"🔒 Found {len(new_content)} paywall paragraphs with selector: {selector}")
+                            print(
+                                f"🔒 Found {len(new_content)} paywall paragraphs with selector: {selector}"
+                            )
                             break  # Stop at first successful paywall extraction
                 except:
                     continue
-            
+
             # Step 4: Combine teaser + paywall content
             all_content = teaser_content + paywall_content
             if all_content:
                 final_content = " ".join(all_content)
-                print(f"🔒 Combined article: {len(teaser_content)} teaser + {len(paywall_content)} paywall = {len(all_content)} total paragraphs, {len(final_content)} characters")
+                print(
+                    f"🔒 Combined article: {len(teaser_content)} teaser + {len(paywall_content)} paywall = {len(all_content)} total paragraphs, {len(final_content)} characters"
+                )
                 return final_content
-        
+
         else:
             # For non-paywalled articles: use original logic
             content_selectors = [
@@ -205,26 +217,117 @@ def get_article_content(driver):
                 ".articulo-contenido p",
                 "h2",  # Fallback
             ]
-            
+
             for selector in content_selectors:
                 try:
                     elements = driver.find_elements(By.CSS_SELECTOR, selector)
                     if elements:
-                        content = " ".join([elem.text.strip() for elem in elements[:5]])  # First 5 paragraphs
+                        content = " ".join(
+                            [elem.text.strip() for elem in elements[:5]]
+                        )  # First 5 paragraphs
                         if content and len(content) > 200:
-                            print(f"Found {len(elements)} paragraphs with selector: {selector}")
+                            print(
+                                f"Found {len(elements)} paragraphs with selector: {selector}"
+                            )
                             print(f"Total content length: {len(content)} characters")
                             return content
                 except:
                     continue
-        
+
         print("⚠ Warning: No content found in article")
         return "No content found"
-        
+
     except Exception as e:
         print(f"Error extracting content from {driver.current_url}: {e}")
         return "No content found"
-    
+
+
+def download_image(image_url, filename, folder="images"):
+    """
+    Download an image from URL and save it locally.
+    """
+    try:
+        # Create images directory
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+            print(f"Created directory: {folder}")
+
+        # Clean filename
+        safe_filename = re.sub(r'[<>:"/\|?*]', "_", filename)
+        safe_filename = safe_filename[:50]  # Limit length
+
+        if image_url.endswith(".jpg") or image_url.endswith(".jpeg"):
+            extension = ".jpg"
+        elif image_url.endswith(".png"):
+            extension = ".png"
+        elif image_url.endswith(".webp"):
+            extension = ".webp"
+        else:
+            extension = ".jpg"
+
+        full_filename = f"{safe_filename}{extension}"
+        local_path = os.path.join(folder, full_filename)
+
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+        response = requests.get(image_url, headers=headers, stream=True)
+        response.raise_for_status()
+
+        with open(local_path, "wb") as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+
+        print(f"📸 Image saved: {local_path}")
+        return local_path
+
+    except Exception as e:
+        print(f"Failed to download image: {e}")
+        return None
+
+
+def save_cover_image(driver, article_title):
+    """
+    Find and download the cover image for the current article.
+    """
+    image_selectors = [
+        "//*[@id='main-content']/header/div[2]/figure/span/img",
+        "//figure//img",
+        "//header//img",
+        "//article//img[1]",
+        "//img[contains(@class, 'article')]",
+    ]
+
+    for selector in image_selectors:
+        try:
+            image_element = driver.find_element(By.XPATH, selector)
+            image_url = image_element.get_attribute("src")
+
+            if image_url and image_url.startswith("http"):
+                print(f"📸 Found cover image: {image_url}")
+
+                # Try to get caption for filename
+                try:
+                    caption_element = driver.find_element(
+                        By.XPATH,
+                        "//*[@id='main-content']/header/div[2]/figure/figcaption",
+                    )
+                    filename = caption_element.text[:30]
+                except:
+                    filename = article_title[:30]
+
+                if not filename.strip():
+                    filename = f"article_image_{int(time.time())}"
+
+                local_path = download_image(image_url, filename)
+                return local_path
+
+        except Exception as e:
+            continue
+
+    print("⚠ No cover image found")
+    return None
+
 
 def get_top_5_articles(driver) -> list:
     articles = driver.find_elements(By.TAG_NAME, "article")[:5]
@@ -253,16 +356,18 @@ def get_top_5_articles(driver) -> list:
         driver.get(article_url)
         time.sleep(3)
         content = get_article_content(driver)
+
+        # Download cover image
+        image_path = save_cover_image(driver, title)
+
         article_data = {
             "position": i,
             "title": title,
             "url": article_url,
-            "content": content
+            "content": content,
+            "cover_image_path": image_path,
         }
         article_data_list.append(article_data)
-        
-    
-
 
     return article_data_list
 
